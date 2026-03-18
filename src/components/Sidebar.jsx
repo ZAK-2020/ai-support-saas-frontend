@@ -1,7 +1,8 @@
+import { useState, useEffect }   from 'react'
 import { NavLink, useNavigate }  from 'react-router-dom'
 import { useAuth }               from '../context/AuthContext'
 import { useClerk }              from '@clerk/clerk-react'
-import { useEffect, useState }   from 'react'
+import { useWindowSize }         from '../hooks/useWindowSize'
 import api                       from '../services/api'
 
 const links = [
@@ -11,15 +12,15 @@ const links = [
 ]
 
 export default function Sidebar() {
-  const { user }          = useAuth()
-  const { signOut }       = useClerk()
-  const navigate          = useNavigate()
+  const { user }            = useAuth()
+  const { signOut }         = useClerk()
+  const navigate            = useNavigate()
+  const { isMobile }        = useWindowSize()
+  const [open, setOpen]     = useState(false)
   const [tenant, setTenant] = useState(null)
 
   useEffect(() => {
-    api.get('/tenant/me').then(({ data }) => {
-      setTenant(data.tenant)
-    }).catch(() => {})
+    api.get('/tenant/me').then(({ data }) => setTenant(data.tenant)).catch(() => {})
   }, [])
 
   const handleLogout = async () => {
@@ -27,79 +28,138 @@ export default function Sidebar() {
     navigate('/sign-in')
   }
 
+  const closeMobile = () => { if (isMobile) setOpen(false) }
+
   return (
-    <aside style={styles.sidebar}>
-      <div style={styles.logo}>
-        <div style={styles.logoIcon}>AI</div>
-        <span style={styles.logoText}>SupportBot</span>
-      </div>
-
-      <div style={styles.tenantBox}>
-        <div style={styles.tenantName}>{tenant?.name || 'Loading...'}</div>
-        <div style={styles.planBadge}>{(tenant?.plan || 'free').toUpperCase()}</div>
-      </div>
-
-      <nav style={styles.nav}>
-        {links.map(link => (
-          <NavLink
-            key={link.to}
-            to={link.to}
-            style={({ isActive }) => ({
-              ...styles.navLink,
-              ...(isActive ? styles.navLinkActive : {})
-            })}
-          >
-            <span style={styles.navIcon}>{link.icon}</span>
-            {link.label}
-          </NavLink>
-        ))}
-      </nav>
-
-      <div style={styles.usageBox}>
-        <div style={styles.usageHeader}>
-          <span style={styles.usageLabel}>Messages used</span>
-          <span style={styles.usageCount}>
-            {tenant?.usage?.messagesUsed || 0} / {tenant?.usage?.messagesLimit || 500}
-          </span>
+    <>
+      {/* Mobile top bar */}
+      {isMobile && (
+        <div style={styles.topBar}>
+          <div style={styles.topBarLogo}>
+            <div style={styles.logoIcon}>AI</div>
+            <span style={styles.logoText}>SupportBot</span>
+          </div>
+          <button style={styles.menuBtn} onClick={() => setOpen(o => !o)}>
+            {open ? '✕' : '☰'}
+          </button>
         </div>
-        <div style={styles.usageTrack}>
-          <div style={{
-            ...styles.usageFill,
-            width: `${Math.min(
-              ((tenant?.usage?.messagesUsed || 0) / (tenant?.usage?.messagesLimit || 500)) * 100,
-              100
-            )}%`
-          }} />
-        </div>
-      </div>
+      )}
 
-      <div style={styles.userBox}>
-        <div style={styles.avatar}>
-          {user?.name?.charAt(0).toUpperCase() || '?'}
+      {/* Overlay */}
+      {isMobile && open && (
+        <div style={styles.overlay} onClick={() => setOpen(false)} />
+      )}
+
+      {/* Sidebar */}
+      <aside style={{
+        ...styles.sidebar,
+        ...(isMobile ? styles.sidebarMobile : {}),
+        ...(isMobile && open  ? styles.sidebarMobileOpen   : {}),
+        ...(isMobile && !open ? styles.sidebarMobileHidden : {})
+      }}>
+        {/* Logo desktop only */}
+        {!isMobile && (
+          <div style={styles.logo}>
+            <div style={styles.logoIcon}>AI</div>
+            <span style={styles.logoText}>SupportBot</span>
+          </div>
+        )}
+
+        {/* Tenant box */}
+        <div style={styles.tenantBox}>
+          <div style={styles.tenantName}>{tenant?.name || 'Loading...'}</div>
+          <div style={styles.planBadge}>{(tenant?.plan || 'free').toUpperCase()}</div>
         </div>
-        <div style={styles.userInfo}>
-          <div style={styles.userName}>{user?.name}</div>
-          <div style={styles.userEmail}>{user?.email}</div>
+
+        {/* Nav */}
+        <nav style={styles.nav}>
+          {links.map(link => (
+            <NavLink
+              key={link.to}
+              to={link.to}
+              onClick={closeMobile}
+              style={({ isActive }) => ({
+                ...styles.navLink,
+                ...(isActive ? styles.navLinkActive : {})
+              })}
+            >
+              <span style={styles.navIcon}>{link.icon}</span>
+              {link.label}
+            </NavLink>
+          ))}
+        </nav>
+
+        {/* Usage */}
+        <div style={styles.usageBox}>
+          <div style={styles.usageHeader}>
+            <span style={styles.usageLabel}>Messages used</span>
+            <span style={styles.usageCount}>
+              {tenant?.usage?.messagesUsed || 0} / {tenant?.usage?.messagesLimit || 500}
+            </span>
+          </div>
+          <div style={styles.usageTrack}>
+            <div style={{
+              ...styles.usageFill,
+              width: `${Math.min(
+                ((tenant?.usage?.messagesUsed || 0) / (tenant?.usage?.messagesLimit || 500)) * 100,
+                100
+              )}%`
+            }} />
+          </div>
         </div>
-        <button onClick={handleLogout} style={styles.logoutBtn} title="Logout">
-          ⇥
-        </button>
-      </div>
-    </aside>
+
+        {/* User */}
+        <div style={styles.userBox}>
+          <div style={styles.avatar}>
+            {user?.name?.charAt(0).toUpperCase() || '?'}
+          </div>
+          <div style={styles.userInfo}>
+            <div style={styles.userName}>{user?.name}</div>
+            <div style={styles.userEmail}>{user?.email}</div>
+          </div>
+          <button onClick={handleLogout} style={styles.logoutBtn} title="Logout">⇥</button>
+        </div>
+      </aside>
+    </>
   )
 }
 
 const styles = {
-  sidebar: {
-    width: '240px', minHeight: '100vh',
-    background: '#1e1b4b', display: 'flex',
-    flexDirection: 'column', padding: '24px 16px', flexShrink: 0
+  topBar: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    padding: '0 16px', height: '56px', background: '#1e1b4b',
+    position: 'sticky', top: 0, zIndex: 100, flexShrink: 0
   },
-  logo: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '28px', paddingLeft: '8px' },
+  topBarLogo: { display: 'flex', alignItems: 'center', gap: '8px' },
+  menuBtn: {
+    background: 'none', border: 'none', color: '#fff',
+    fontSize: '22px', cursor: 'pointer', padding: '4px 8px'
+  },
+  overlay: {
+    position: 'fixed', inset: 0,
+    background: 'rgba(0,0,0,0.5)', zIndex: 199
+  },
+  sidebar: {
+    width: '240px', minHeight: '100vh', background: '#1e1b4b',
+    display: 'flex', flexDirection: 'column',
+    padding: '24px 16px', flexShrink: 0
+  },
+  sidebarMobile: {
+    position: 'fixed', top: 0, left: 0,
+    height: '100vh', zIndex: 200,
+    transition: 'transform 0.25s ease', overflowY: 'auto'
+  },
+  sidebarMobileOpen:   { transform: 'translateX(0)' },
+  sidebarMobileHidden: { transform: 'translateX(-100%)' },
+  logo: {
+    display: 'flex', alignItems: 'center',
+    gap: '10px', marginBottom: '28px', paddingLeft: '8px'
+  },
   logoIcon: {
     background: '#6366f1', color: '#fff', borderRadius: '8px',
     width: '34px', height: '34px', display: 'flex',
-    alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '13px'
+    alignItems: 'center', justifyContent: 'center',
+    fontWeight: '700', fontSize: '13px'
   },
   logoText:   { color: '#fff', fontWeight: '700', fontSize: '17px' },
   tenantBox: {
@@ -112,7 +172,7 @@ const styles = {
     background: '#6366f1', color: '#fff', borderRadius: '4px',
     padding: '2px 6px', fontSize: '10px', fontWeight: '700'
   },
-  nav: { display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 },
+  nav:  { display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 },
   navLink: {
     display: 'flex', alignItems: 'center', gap: '10px',
     padding: '10px 12px', borderRadius: '8px',
@@ -128,8 +188,14 @@ const styles = {
   usageHeader:   { display: 'flex', justifyContent: 'space-between', marginBottom: '8px' },
   usageLabel:    { color: '#94a3b8', fontSize: '11px' },
   usageCount:    { color: '#e2e8f0', fontSize: '11px', fontWeight: '600' },
-  usageTrack:    { background: 'rgba(255,255,255,0.1)', borderRadius: '4px', height: '4px', overflow: 'hidden' },
-  usageFill:     { background: '#6366f1', height: '100%', borderRadius: '4px', transition: 'width 0.3s' },
+  usageTrack: {
+    background: 'rgba(255,255,255,0.1)', borderRadius: '4px',
+    height: '4px', overflow: 'hidden'
+  },
+  usageFill: {
+    background: '#6366f1', height: '100%',
+    borderRadius: '4px', transition: 'width 0.3s'
+  },
   userBox: {
     display: 'flex', alignItems: 'center', gap: '10px',
     padding: '10px 8px', borderTop: '1px solid rgba(255,255,255,0.08)',
@@ -142,7 +208,16 @@ const styles = {
     fontWeight: '700', fontSize: '13px', flexShrink: 0
   },
   userInfo:  { flex: 1, overflow: 'hidden' },
-  userName:  { color: '#e2e8f0', fontSize: '13px', fontWeight: '500', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  userEmail: { color: '#64748b', fontSize: '11px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  logoutBtn: { background: 'none', border: 'none', color: '#64748b', fontSize: '18px', padding: '4px', cursor: 'pointer' }
+  userName: {
+    color: '#e2e8f0', fontSize: '13px', fontWeight: '500',
+    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+  },
+  userEmail: {
+    color: '#64748b', fontSize: '11px',
+    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+  },
+  logoutBtn: {
+    background: 'none', border: 'none', color: '#64748b',
+    fontSize: '18px', padding: '4px', cursor: 'pointer'
+  }
 }
